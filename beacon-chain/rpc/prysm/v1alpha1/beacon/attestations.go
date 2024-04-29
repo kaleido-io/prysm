@@ -22,7 +22,7 @@ import (
 
 // sortableAttestations implements the Sort interface to sort attestations
 // by slot as the canonical sorting attribute.
-type sortableAttestations []interfaces.Attestation
+type sortableAttestations []ethpb.Att
 
 // Len is the number of elements in the collection.
 func (s sortableAttestations) Len() int { return len(s) }
@@ -35,8 +35,8 @@ func (s sortableAttestations) Less(i, j int) bool {
 	return s[i].GetData().Slot < s[j].GetData().Slot
 }
 
-func mapAttestationsByTargetRoot(atts []interfaces.Attestation) map[[32]byte][]interfaces.Attestation {
-	attsMap := make(map[[32]byte][]interfaces.Attestation, len(atts))
+func mapAttestationsByTargetRoot(atts []ethpb.Att) map[[32]byte][]ethpb.Att {
+	attsMap := make(map[[32]byte][]ethpb.Att, len(atts))
 	if len(atts) == 0 {
 		return attsMap
 	}
@@ -75,7 +75,7 @@ func (bs *Server) ListAttestations(
 	default:
 		return nil, status.Error(codes.InvalidArgument, "Must specify a filter criteria for fetching attestations")
 	}
-	atts := make([]interfaces.Attestation, 0, params.BeaconConfig().MaxAttestations*uint64(len(blocks)))
+	atts := make([]ethpb.Att, 0, params.BeaconConfig().MaxAttestations*uint64(len(blocks)))
 	for _, blk := range blocks {
 		atts = append(atts, blk.Block().Body().Attestations()...)
 	}
@@ -97,11 +97,11 @@ func (bs *Server) ListAttestations(
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not paginate attestations: %v", err)
 	}
-	attestations := make([]*ethpb.Attestation, len(atts))
-	for i, att := range atts {
+	attestations := make([]*ethpb.Attestation, 0, len(atts))
+	for _, att := range atts {
 		a, ok := att.(*ethpb.Attestation)
 		if ok {
-			attestations[i] = a
+			attestations = append(attestations, a)
 		}
 	}
 	return &ethpb.ListAttestationsResponse{
@@ -137,7 +137,7 @@ func (bs *Server) ListIndexedAttestations(
 		return nil, status.Error(codes.InvalidArgument, "Must specify a filter criteria for fetching attestations")
 	}
 
-	attsArray := make([]interfaces.Attestation, 0, params.BeaconConfig().MaxAttestations*uint64(len(blocks)))
+	attsArray := make([]ethpb.Att, 0, params.BeaconConfig().MaxAttestations*uint64(len(blocks)))
 	for _, b := range blocks {
 		attsArray = append(attsArray, b.Block().Body().Attestations()...)
 	}
@@ -186,7 +186,10 @@ func (bs *Server) ListIndexedAttestations(
 			if err != nil {
 				return nil, err
 			}
-			indexedAtts = append(indexedAtts, idxAtt)
+			a, ok := idxAtt.(*ethpb.IndexedAttestation)
+			if ok {
+				indexedAtts = append(indexedAtts, a)
+			}
 		}
 	}
 
@@ -234,11 +237,11 @@ func (bs *Server) AttestationPool(
 	if err != nil {
 		return nil, status.Errorf(codes.Internal, "Could not paginate attestations: %v", err)
 	}
-	attestations := make([]*ethpb.Attestation, len(atts))
-	for i, att := range atts {
+	attestations := make([]*ethpb.Attestation, 0, len(atts))
+	for _, att := range atts {
 		a, ok := att.(*ethpb.Attestation)
 		if ok {
-			attestations[i] = a
+			attestations = append(attestations, a)
 		}
 	}
 	return &ethpb.AttestationPoolResponse{
