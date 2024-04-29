@@ -99,7 +99,7 @@ func ProcessRegistryUpdates(ctx context.Context, state state.BeaconState) (state
 	activationEligibilityEpoch := time.CurrentEpoch(state) + 1
 	for idx, validator := range vals {
 		// Process the validators for activation eligibility.
-		if helpers.IsEligibleForActivationQueue(validator) {
+		if helpers.IsEligibleForActivationQueue(validator, currentEpoch) {
 			validator.ActivationEligibilityEpoch = activationEligibilityEpoch
 			if err := state.UpdateValidatorAtIndex(primitives.ValidatorIndex(idx), validator); err != nil {
 				return nil, err
@@ -470,25 +470,11 @@ func UnslashedAttestingIndices(ctx context.Context, state state.ReadOnlyBeaconSt
 	seen := make(map[uint64]bool)
 
 	for _, att := range atts {
-		var committees [][]primitives.ValidatorIndex
-		if att.Version() < version.Electra {
-			committee, err := helpers.BeaconCommitteeFromState(ctx, state, att.GetData().Slot, att.GetData().CommitteeIndex)
-			if err != nil {
-				return nil, err
-			}
-			committees = [][]primitives.ValidatorIndex{committee}
-		} else {
-			committeeIndices := helpers.CommitteeIndices(att.GetCommitteeBits())
-			committees = make([][]primitives.ValidatorIndex, len(committeeIndices))
-			var err error
-			for i, ci := range committeeIndices {
-				committees[i], err = helpers.BeaconCommitteeFromState(ctx, state, att.GetData().Slot, ci)
-				if err != nil {
-					return nil, err
-				}
-			}
+		committee, err := helpers.BeaconCommitteeFromState(ctx, state, att.GetData().Slot, att.GetData().CommitteeIndex)
+		if err != nil {
+			return nil, err
 		}
-		attestingIndices, err := attestation.AttestingIndices(att, committees)
+		attestingIndices, err := attestation.AttestingIndices(att, committee)
 		if err != nil {
 			return nil, err
 		}
