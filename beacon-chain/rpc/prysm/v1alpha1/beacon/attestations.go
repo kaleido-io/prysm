@@ -354,8 +354,8 @@ func (bs *Server) AttestationPoolElectra(_ context.Context, req *ethpb.Attestati
 	}, nil
 }
 
-func blockAttestations[T interfaces.Attestation](blocks []interfaces.ReadOnlySignedBeaconBlock) ([]T, error) {
-	blockAtts := make([]interfaces.Attestation, 0, params.BeaconConfig().MaxAttestations*uint64(len(blocks)))
+func blockAttestations[T ethpb.Att](blocks []interfaces.ReadOnlySignedBeaconBlock) ([]T, error) {
+	blockAtts := make([]ethpb.Att, 0, params.BeaconConfig().MaxAttestations*uint64(len(blocks)))
 	for _, blk := range blocks {
 		blockAtts = append(blockAtts, blk.Block().Body().Attestations()...)
 	}
@@ -384,7 +384,7 @@ func blockIndexedAttestations[T ethpb.IndexedAtt](
 	blocks []interfaces.ReadOnlySignedBeaconBlock,
 	stateGen stategen.StateManager,
 ) ([]T, error) {
-	attsArray := make([]interfaces.Attestation, 0, params.BeaconConfig().MaxAttestations*uint64(len(blocks)))
+	attsArray := make([]ethpb.Att, 0, params.BeaconConfig().MaxAttestations*uint64(len(blocks)))
 	for _, b := range blocks {
 		attsArray = append(attsArray, b.Block().Body().Attestations()...)
 	}
@@ -440,7 +440,7 @@ func blockIndexedAttestations[T ethpb.IndexedAtt](
 	return indexed, nil
 }
 
-func attestationsFromPool[T interfaces.Attestation](pageSize int32, pool attestations.Pool) ([]T, error) {
+func attestationsFromPool[T ethpb.Att](pageSize int32, pool attestations.Pool) ([]T, error) {
 	if int(pageSize) > cmd.Get().MaxRPCPageSize {
 		return nil, status.Errorf(
 			codes.InvalidArgument,
