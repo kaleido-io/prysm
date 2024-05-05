@@ -6,7 +6,7 @@ import (
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/go-bitfield"
-	"github.com/prysmaticlabs/prysm/v5/consensus-types/interfaces"
+	ethpb "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1"
 )
 
 func (c *AttCaches) insertSeenBit(att ethpb.Att) error {

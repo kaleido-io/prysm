@@ -2,7 +2,7 @@ package kv
 
 import (
 	"github.com/pkg/errors"
-	"github.com/prysmaticlabs/prysm/v5/consensus-types/interfaces"
+	ethpb "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1"
 )
 
 // SaveForkchoiceAttestation saves an forkchoice attestation in cache.
