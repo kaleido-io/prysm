@@ -17,7 +17,7 @@ func (c *AttCaches) SaveForkchoiceAttestation(att ethpb.Att) error {
 
 	c.forkchoiceAttLock.Lock()
 	defer c.forkchoiceAttLock.Unlock()
-	c.forkchoiceAtt[r] = att.Copy()
+	c.forkchoiceAtt[versionAndDataRoot{att.Version(), r}] = att
 
 	return nil
 }
@@ -58,7 +58,7 @@ func (c *AttCaches) DeleteForkchoiceAttestation(att ethpb.Att) error {
 
 	c.forkchoiceAttLock.Lock()
 	defer c.forkchoiceAttLock.Unlock()
-	delete(c.forkchoiceAtt, r)
+	delete(c.forkchoiceAtt, versionAndDataRoot{att.Version(), r})
 
 	return nil
 }
