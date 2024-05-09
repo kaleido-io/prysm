@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"math"
 	"strings"
 	"time"
 
@@ -156,7 +157,8 @@ func (v *validator) SubmitAttestation(ctx context.Context, slot primitives.Slot,
 
 	aggregationBitfield := bitfield.NewBitlist(uint64(len(duty.Committee)))
 	aggregationBitfield.SetBitAt(indexInCommittee, true)
-	committeeBits := make([]byte, params.BeaconConfig().MaxCommitteesPerSlot)
+	// TODO: hack
+	committeeBits := make([]byte, int(math.Ceil(float64(params.BeaconConfig().MaxCommitteesPerSlot)/float64(8))))
 
 	var attResp *ethpb.AttestResponse
 	if postElectra {
@@ -166,7 +168,7 @@ func (v *validator) SubmitAttestation(ctx context.Context, slot primitives.Slot,
 			CommitteeBits:   committeeBits,
 			Signature:       sig,
 		}
-		attestation.GetCommitteeBitsVal().SetBitAt(uint64(req.CommitteeIndex), true)
+		attestation.CommitteeBits.SetBitAt(uint64(req.CommitteeIndex), true)
 		attResp, err = v.validatorClient.ProposeAttestationElectra(ctx, attestation)
 	} else {
 		attestation := &ethpb.Attestation{
