@@ -27,9 +27,8 @@ func (c *AttCaches) insertSeenBit(att ethpb.Att) error {
 			return err
 		}
 	}
-	r := h
 
-	v, ok := c.seenAtt.Get(string(r[:]) + strconv.Itoa(att.Version()))
+	v, ok := c.seenAtt.Get(string(h[:]) + strconv.Itoa(att.Version()))
 	if ok {
 		seenBits, ok := v.([]bitfield.Bitlist)
 		if !ok {
@@ -47,11 +46,11 @@ func (c *AttCaches) insertSeenBit(att ethpb.Att) error {
 		if !alreadyExists {
 			seenBits = append(seenBits, att.GetAggregationBits())
 		}
-		c.seenAtt.Set(string(r[:])+strconv.Itoa(att.Version()), seenBits, cache.DefaultExpiration /* one epoch */)
+		c.seenAtt.Set(string(h[:])+strconv.Itoa(att.Version()), seenBits, cache.DefaultExpiration /* one epoch */)
 		return nil
 	}
 
-	c.seenAtt.Set(string(r[:])+strconv.Itoa(att.Version()), []bitfield.Bitlist{att.GetAggregationBits()}, cache.DefaultExpiration /* one epoch */)
+	c.seenAtt.Set(string(h[:])+strconv.Itoa(att.Version()), []bitfield.Bitlist{att.GetAggregationBits()}, cache.DefaultExpiration /* one epoch */)
 	return nil
 }
 
@@ -71,9 +70,8 @@ func (c *AttCaches) hasSeenBit(att ethpb.Att) (bool, error) {
 			return false, err
 		}
 	}
-	r := h
 
-	v, ok := c.seenAtt.Get(string(r[:]) + strconv.Itoa(att.Version()))
+	v, ok := c.seenAtt.Get(string(h[:]) + strconv.Itoa(att.Version()))
 	if ok {
 		seenBits, ok := v.([]bitfield.Bitlist)
 		if !ok {
