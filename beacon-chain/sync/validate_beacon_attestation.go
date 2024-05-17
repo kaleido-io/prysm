@@ -146,13 +146,27 @@ func (s *Service) validateCommitteeIndexBeaconAttestation(ctx context.Context, p
 		}()
 	}
 
-	// Verify this the first attestation received for the participating validator for the slot.
 	var committeeIndex primitives.CommitteeIndex
 	if att.Version() < version.Electra {
 		committeeIndex = att.GetData().CommitteeIndex
 	} else {
-		committeeIndex = primitives.CommitteeIndex(att.GetCommitteeBitsVal().BitIndices()[0])
+		// Verify committee index post-Electra.
+		a, ok := att.(*eth.AttestationElectra)
+		// This will never fail in practice because we asserted the version
+		if !ok {
+			err := errors.New("attestation has wrong type")
+			tracing.AnnotateError(span, err)
+			return pubsub.ValidationReject, err
+		}
+		committeeIndex, validationRes, err = validateCommitteeIndexElectra(ctx, a)
+		if validationRes != pubsub.ValidationAccept {
+			wrappedErr := errors.Wrapf(err, "could not validate committee index for Electra version")
+			tracing.AnnotateError(span, wrappedErr)
+			return validationRes, wrappedErr
+		}
 	}
+
+	// Verify this the first attestation received for the participating validator for the slot.
 	if s.hasSeenCommitteeIndicesSlot(att.GetData().Slot, committeeIndex, att.GetAggregationBits()) {
 		return pubsub.ValidationIgnore, nil
 	}

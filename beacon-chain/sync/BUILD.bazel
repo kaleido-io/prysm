@@ -44,6 +44,7 @@ go_library(
         "validate_aggregate_proof.go",
         "validate_attester_slashing.go",
         "validate_beacon_attestation.go",
+        "validate_beacon_attestations_electra.go",
         "validate_beacon_blocks.go",
         "validate_blob.go",
         "validate_bls_to_execution_change.go",
