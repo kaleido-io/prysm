@@ -175,7 +175,20 @@ func (s *Service) validateAggregatedAtt(ctx context.Context, signed ethpb.Signed
 	if signed.Version() == version.Phase0 {
 		committeeIndex = signed.GetAggregateAttestationAndProof().GetAggregateVal().GetData().CommitteeIndex
 	} else {
-		committeeIndex = primitives.CommitteeIndex(signed.GetAggregateAttestationAndProof().GetAggregateVal().GetCommitteeBitsVal().BitIndices()[0])
+		// Verify committee index post-Electra.
+		a, ok := signed.GetAggregateAttestationAndProof().GetAggregateVal().(*ethpb.AttestationElectra)
+		// This will never fail in practice because we asserted the version
+		if !ok {
+			err := errors.New("attestation has wrong type")
+			tracing.AnnotateError(span, err)
+			return pubsub.ValidationReject, err
+		}
+		committeeIndex, result, err = validateCommitteeIndexElectra(ctx, a)
+		if result != pubsub.ValidationAccept {
+			wrappedErr := errors.Wrapf(err, "could not validate committee index for Electra version")
+			tracing.AnnotateError(span, wrappedErr)
+			return result, wrappedErr
+		}
 	}
 
 	// Verify selection proof reflects to the right validator.
