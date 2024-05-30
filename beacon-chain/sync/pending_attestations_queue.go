@@ -90,10 +90,10 @@ func (s *Service) processPendingAtts(ctx context.Context) error {
 
 func (s *Service) processAttestations(ctx context.Context, attestations []ethpb.SignedAggregateAttAndProof) {
 	for _, signedAtt := range attestations {
-		att := signedAtt.GetAggregateAttestationAndProof()
+		att := signedAtt.AggregateAttestationAndProof()
 		// The pending attestations can arrive in both aggregated and unaggregated forms,
 		// each from has distinct validation steps.
-		if helpers.IsAggregated(att.GetAggregateVal()) {
+		if helpers.IsAggregated(att.AggregateVal()) {
 			// Save the pending aggregated attestation to the pool if it passes the aggregated
 			// validation steps.
 			valRes, err := s.validateAggregatedAtt(ctx, signedAtt)
@@ -102,11 +102,11 @@ func (s *Service) processAttestations(ctx context.Context, attestations []ethpb.
 			}
 			aggValid := pubsub.ValidationAccept == valRes
 			if s.validateBlockInAttestation(ctx, signedAtt) && aggValid {
-				if err := s.cfg.attPool.SaveAggregatedAttestation(att.GetAggregateVal()); err != nil {
+				if err := s.cfg.attPool.SaveAggregatedAttestation(att.AggregateVal()); err != nil {
 					log.WithError(err).Debug("Could not save aggregate attestation")
 					continue
 				}
-				s.setAggregatorIndexEpochSeen(att.GetAggregateVal().GetData().Target.Epoch, att.GetAggregatorIndex())
+				s.setAggregatorIndexEpochSeen(att.AggregateVal().GetData().Target.Epoch, att.GetAggregatorIndex())
 
 				// Broadcasting the signed attestation again once a node is able to process it.
 				if err := s.cfg.p2p.Broadcast(ctx, signedAtt); err != nil {
@@ -117,37 +117,37 @@ func (s *Service) processAttestations(ctx context.Context, attestations []ethpb.
 			// This is an important validation before retrieving attestation pre state to defend against
 			// attestation's target intentionally reference checkpoint that's long ago.
 			// Verify current finalized checkpoint is an ancestor of the block defined by the attestation's beacon block root.
-			if !s.cfg.chain.InForkchoice(bytesutil.ToBytes32(att.GetAggregateVal().GetData().BeaconBlockRoot)) {
+			if !s.cfg.chain.InForkchoice(bytesutil.ToBytes32(att.AggregateVal().GetData().BeaconBlockRoot)) {
 				log.WithError(blockchain.ErrNotDescendantOfFinalized).Debug("Could not verify finalized consistency")
 				continue
 			}
-			if err := s.cfg.chain.VerifyLmdFfgConsistency(ctx, att.GetAggregateVal()); err != nil {
+			if err := s.cfg.chain.VerifyLmdFfgConsistency(ctx, att.AggregateVal()); err != nil {
 				log.WithError(err).Debug("Could not verify FFG consistency")
 				continue
 			}
-			preState, err := s.cfg.chain.AttestationTargetState(ctx, att.GetAggregateVal().GetData().Target)
+			preState, err := s.cfg.chain.AttestationTargetState(ctx, att.AggregateVal().GetData().Target)
 			if err != nil {
 				log.WithError(err).Debug("Could not retrieve attestation prestate")
 				continue
 			}
 
-			valid, err := s.validateUnaggregatedAttWithState(ctx, att.GetAggregateVal(), preState)
+			valid, err := s.validateUnaggregatedAttWithState(ctx, att.AggregateVal(), preState)
 			if err != nil {
 				log.WithError(err).Debug("Pending unaggregated attestation failed validation")
 				continue
 			}
 			if valid == pubsub.ValidationAccept {
-				if err := s.cfg.attPool.SaveUnaggregatedAttestation(att.GetAggregateVal()); err != nil {
+				if err := s.cfg.attPool.SaveUnaggregatedAttestation(att.AggregateVal()); err != nil {
 					log.WithError(err).Debug("Could not save unaggregated attestation")
 					continue
 				}
 				s.setSeenCommitteeIndicesSlot(
-					att.GetAggregateVal().GetData().Slot,
-					att.GetAggregateVal().GetData().CommitteeIndex,
-					att.GetAggregateVal().GetAggregationBits(),
+					att.AggregateVal().GetData().Slot,
+					att.AggregateVal().GetData().CommitteeIndex,
+					att.AggregateVal().GetAggregationBits(),
 				)
 
-				valCount, err := helpers.ActiveValidatorCount(ctx, preState, slots.ToEpoch(att.GetAggregateVal().GetData().Slot))
+				valCount, err := helpers.ActiveValidatorCount(ctx, preState, slots.ToEpoch(att.AggregateVal().GetData().Slot))
 				if err != nil {
 					log.WithError(err).Debug("Could not retrieve active validator count")
 					continue
@@ -155,8 +155,8 @@ func (s *Service) processAttestations(ctx context.Context, attestations []ethpb.
 				// Broadcasting the signed attestation again once a node is able to process it.
 				if err := s.cfg.p2p.BroadcastAttestation(ctx, helpers.ComputeSubnetForAttestation(
 					valCount,
-					signedAtt.GetAggregateAttestationAndProof().GetAggregateVal(),
-				), signedAtt.GetAggregateAttestationAndProof().GetAggregateVal()); err != nil {
+					signedAtt.AggregateAttestationAndProof().AggregateVal(),
+				), signedAtt.AggregateAttestationAndProof().AggregateVal()); err != nil {
 					log.WithError(err).Debug("Could not broadcast")
 				}
 			}
@@ -169,7 +169,7 @@ func (s *Service) processAttestations(ctx context.Context, attestations []ethpb.
 // that voted for that block root. The caller of this function is responsible
 // for not sending repeated attestations to the pending queue.
 func (s *Service) savePendingAtt(att ethpb.SignedAggregateAttAndProof) {
-	root := bytesutil.ToBytes32(att.GetAggregateAttestationAndProof().GetAggregateVal().GetData().BeaconBlockRoot)
+	root := bytesutil.ToBytes32(att.AggregateAttestationAndProof().AggregateVal().GetData().BeaconBlockRoot)
 
 	s.pendingAttsLock.Lock()
 	defer s.pendingAttsLock.Unlock()
@@ -202,32 +202,32 @@ func (s *Service) savePendingAtt(att ethpb.SignedAggregateAttAndProof) {
 
 func attsAreEqual(a, b ethpb.SignedAggregateAttAndProof) bool {
 	if a.GetSignature() != nil {
-		return b.GetSignature() != nil && a.GetAggregateAttestationAndProof().GetAggregatorIndex() == b.GetAggregateAttestationAndProof().GetAggregatorIndex()
+		return b.GetSignature() != nil && a.AggregateAttestationAndProof().GetAggregatorIndex() == b.AggregateAttestationAndProof().GetAggregatorIndex()
 	}
 	if b.GetSignature() != nil {
 		return false
 	}
-	if a.GetAggregateAttestationAndProof().GetAggregateVal().GetData().Slot != b.GetAggregateAttestationAndProof().GetAggregateVal().GetData().Slot {
+	if a.AggregateAttestationAndProof().AggregateVal().GetData().Slot != b.AggregateAttestationAndProof().AggregateVal().GetData().Slot {
 		return false
 	}
 
 	if a.Version() == version.Phase0 {
-		if a.GetAggregateAttestationAndProof().GetAggregateVal().GetData().CommitteeIndex !=
-			b.GetAggregateAttestationAndProof().GetAggregateVal().GetData().CommitteeIndex {
+		if a.AggregateAttestationAndProof().AggregateVal().GetData().CommitteeIndex !=
+			b.AggregateAttestationAndProof().AggregateVal().GetData().CommitteeIndex {
 			return false
 		}
 	} else {
 		if !bytes.Equal(
-			a.GetAggregateAttestationAndProof().GetAggregateVal().GetCommitteeBitsVal().Bytes(),
-			b.GetAggregateAttestationAndProof().GetAggregateVal().GetCommitteeBitsVal().Bytes(),
+			a.AggregateAttestationAndProof().AggregateVal().CommitteeBitsVal().Bytes(),
+			b.AggregateAttestationAndProof().AggregateVal().CommitteeBitsVal().Bytes(),
 		) {
 			return false
 		}
 	}
 
 	return bytes.Equal(
-		a.GetAggregateAttestationAndProof().GetAggregateVal().GetAggregationBits(),
-		b.GetAggregateAttestationAndProof().GetAggregateVal().GetAggregationBits(),
+		a.AggregateAttestationAndProof().AggregateVal().GetAggregationBits(),
+		b.AggregateAttestationAndProof().AggregateVal().GetAggregationBits(),
 	)
 }
 
@@ -244,7 +244,7 @@ func (s *Service) validatePendingAtts(ctx context.Context, slot primitives.Slot)
 
 	for bRoot, atts := range s.blkRootToPendingAtts {
 		for i := len(atts) - 1; i >= 0; i-- {
-			if slot >= atts[i].GetAggregateAttestationAndProof().GetAggregateVal().GetData().Slot+params.BeaconConfig().SlotsPerEpoch {
+			if slot >= atts[i].AggregateAttestationAndProof().AggregateVal().GetData().Slot+params.BeaconConfig().SlotsPerEpoch {
 				// Remove the pending attestation from the list in place.
 				atts = append(atts[:i], atts[i+1:]...)
 			}

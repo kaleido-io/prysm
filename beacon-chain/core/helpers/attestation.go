@@ -95,7 +95,7 @@ func ComputeSubnetForAttestation(activeValCount uint64, att ethpb.Att) uint64 {
 	if att.Version() == version.Phase0 {
 		return ComputeSubnetFromCommitteeAndSlot(activeValCount, att.GetData().CommitteeIndex, att.GetData().Slot)
 	}
-	return ComputeSubnetFromCommitteeAndSlot(activeValCount, primitives.CommitteeIndex(att.GetCommitteeBitsVal().BitIndices()[0]), att.GetData().Slot)
+	return ComputeSubnetFromCommitteeAndSlot(activeValCount, primitives.CommitteeIndex(att.CommitteeBitsVal().BitIndices()[0]), att.GetData().Slot)
 }
 
 // ComputeSubnetFromCommitteeAndSlot is a flattened version of ComputeSubnetForAttestation where we only pass in

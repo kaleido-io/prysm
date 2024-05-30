@@ -255,18 +255,18 @@ func (s *Service) SubmitSignedAggregateSelectionProof(
 	ctx, span := trace.StartSpan(ctx, "coreService.SubmitSignedAggregateSelectionProof")
 	defer span.End()
 
-	if agg == nil || agg.GetAggregateAttestationAndProof() == nil ||
-		agg.GetAggregateAttestationAndProof().GetAggregateVal() == nil || agg.GetAggregateAttestationAndProof().GetAggregateVal().GetData() == nil {
+	if agg == nil || agg.AggregateAttestationAndProof() == nil ||
+		agg.AggregateAttestationAndProof().AggregateVal() == nil || agg.AggregateAttestationAndProof().AggregateVal().GetData() == nil {
 		return &RpcError{Err: errors.New("signed aggregate request can't be nil"), Reason: BadRequest}
 	}
 	emptySig := make([]byte, fieldparams.BLSSignatureLength)
 	if bytes.Equal(agg.GetSignature(), emptySig) ||
-		bytes.Equal(agg.GetAggregateAttestationAndProof().GetSelectionProof(), emptySig) {
+		bytes.Equal(agg.AggregateAttestationAndProof().GetSelectionProof(), emptySig) {
 		return &RpcError{Err: errors.New("signed signatures can't be zero hashes"), Reason: BadRequest}
 	}
 
 	// As a preventive measure, a beacon node shouldn't broadcast an attestation whose slot is out of range.
-	if err := helpers.ValidateAttestationTime(agg.GetAggregateAttestationAndProof().GetAggregateVal().GetData().Slot,
+	if err := helpers.ValidateAttestationTime(agg.AggregateAttestationAndProof().AggregateVal().GetData().Slot,
 		s.GenesisTimeFetcher.GenesisTime(), params.BeaconConfig().MaximumGossipClockDisparityDuration()); err != nil {
 		return &RpcError{Err: errors.New("attestation slot is no longer valid from current time"), Reason: BadRequest}
 	}
@@ -278,18 +278,18 @@ func (s *Service) SubmitSignedAggregateSelectionProof(
 	var fields logrus.Fields
 	if agg.Version() < version.Electra {
 		fields = logrus.Fields{
-			"slot":            agg.GetAggregateAttestationAndProof().GetAggregateVal().GetData().Slot,
-			"committeeIndex":  agg.GetAggregateAttestationAndProof().GetAggregateVal().GetData().CommitteeIndex,
-			"validatorIndex":  agg.GetAggregateAttestationAndProof().GetAggregatorIndex(),
-			"aggregatedCount": agg.GetAggregateAttestationAndProof().GetAggregateVal().GetAggregationBits().Count(),
+			"slot":            agg.AggregateAttestationAndProof().AggregateVal().GetData().Slot,
+			"committeeIndex":  agg.AggregateAttestationAndProof().AggregateVal().GetData().CommitteeIndex,
+			"validatorIndex":  agg.AggregateAttestationAndProof().GetAggregatorIndex(),
+			"aggregatedCount": agg.AggregateAttestationAndProof().AggregateVal().GetAggregationBits().Count(),
 		}
 	} else {
 		fields = logrus.Fields{
-			"slot":             agg.GetAggregateAttestationAndProof().GetAggregateVal().GetData().Slot,
-			"committeeCount":   agg.GetAggregateAttestationAndProof().GetAggregateVal().GetCommitteeBitsVal().Count(),
-			"committeeIndices": agg.GetAggregateAttestationAndProof().GetAggregateVal().GetCommitteeBitsVal().BitIndices(),
-			"validatorIndex":   agg.GetAggregateAttestationAndProof().GetAggregatorIndex(),
-			"aggregatedCount":  agg.GetAggregateAttestationAndProof().GetAggregateVal().GetAggregationBits().Count(),
+			"slot":             agg.AggregateAttestationAndProof().AggregateVal().GetData().Slot,
+			"committeeCount":   agg.AggregateAttestationAndProof().AggregateVal().CommitteeBitsVal().Count(),
+			"committeeIndices": agg.AggregateAttestationAndProof().AggregateVal().CommitteeBitsVal().BitIndices(),
+			"validatorIndex":   agg.AggregateAttestationAndProof().GetAggregatorIndex(),
+			"aggregatedCount":  agg.AggregateAttestationAndProof().AggregateVal().GetAggregationBits().Count(),
 		}
 	}
 	log.WithFields(fields).Debug("Broadcasting aggregated attestation and proof")

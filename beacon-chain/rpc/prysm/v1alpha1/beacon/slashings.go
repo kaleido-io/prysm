@@ -63,7 +63,7 @@ func (bs *Server) submitAttesterSlashing(ctx context.Context, slashing ethpb.Att
 			return nil, status.Errorf(codes.Internal, "Could not broadcast slashing object: %v", err)
 		}
 	}
-	indices := slice.IntersectionUint64(slashing.GetFirstAttestation().GetAttestingIndices(), slashing.GetSecondAttestation().GetAttestingIndices())
+	indices := slice.IntersectionUint64(slashing.FirstAttestation().GetAttestingIndices(), slashing.SecondAttestation().GetAttestingIndices())
 	slashedIndices := make([]primitives.ValidatorIndex, len(indices))
 	for i, index := range indices {
 		slashedIndices[i] = primitives.ValidatorIndex(index)
