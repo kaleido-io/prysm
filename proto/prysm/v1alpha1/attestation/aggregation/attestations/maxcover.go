@@ -183,7 +183,7 @@ func aggregateAttestations(atts []ethpb.Att, keys []int, coverage *bitfield.Bitl
 		atts[targetIdx] = &ethpb.AttestationElectra{
 			// Append size byte, which will be unnecessary on switch to Bitlist64.
 			AggregationBits: coverage.ToBitlist(),
-			CommitteeBits:   atts[0].GetCommitteeBitsVal().Bytes(),
+			CommitteeBits:   atts[0].CommitteeBitsVal().Bytes(),
 			Data:            data,
 			Signature:       aggregateSignatures(signs).Marshal(),
 		}

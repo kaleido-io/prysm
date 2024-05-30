@@ -21,7 +21,7 @@ func (c *AttCaches) insertSeenBit(att ethpb.Att) error {
 		}
 	} else {
 		data := ethpb.CopyAttestationData(att.GetData())
-		data.CommitteeIndex = primitives.CommitteeIndex(att.GetCommitteeBitsVal().BitIndices()[0])
+		data.CommitteeIndex = primitives.CommitteeIndex(att.CommitteeBitsVal().BitIndices()[0])
 		h, err = hashFn(data)
 		if err != nil {
 			return err
@@ -64,7 +64,7 @@ func (c *AttCaches) hasSeenBit(att ethpb.Att) (bool, error) {
 		}
 	} else {
 		data := ethpb.CopyAttestationData(att.GetData())
-		data.CommitteeIndex = primitives.CommitteeIndex(att.GetCommitteeBitsVal().BitIndices()[0])
+		data.CommitteeIndex = primitives.CommitteeIndex(att.CommitteeBitsVal().BitIndices()[0])
 		h, err = hashFn(data)
 		if err != nil {
 			return false, err

@@ -128,7 +128,7 @@ func (s *Service) validateCommitteeIndexBeaconAttestation(ctx context.Context, p
 				}
 				committee = c
 			} else {
-				committee, err = helpers.BeaconCommitteeFromState(ctx, preState, att.GetData().Slot, helpers.CommitteeIndices(att.GetCommitteeBitsVal())[0])
+				committee, err = helpers.BeaconCommitteeFromState(ctx, preState, att.GetData().Slot, helpers.CommitteeIndices(att.CommitteeBitsVal())[0])
 				if err != nil {
 					log.WithError(err).Error("Could not get attestation committee")
 					tracing.AnnotateError(span, err)
@@ -287,7 +287,7 @@ func (s *Service) validateBitLength(ctx context.Context, a eth.Att, bs state.Rea
 			return nil, pubsub.ValidationIgnore, err
 		}
 	} else {
-		committee, err = helpers.BeaconCommitteeFromState(ctx, bs, a.GetData().Slot, primitives.CommitteeIndex(a.GetCommitteeBitsVal().BitIndices()[0]))
+		committee, err = helpers.BeaconCommitteeFromState(ctx, bs, a.GetData().Slot, primitives.CommitteeIndex(a.CommitteeBitsVal().BitIndices()[0]))
 		if err != nil {
 			return nil, pubsub.ValidationIgnore, err
 		}

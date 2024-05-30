@@ -32,7 +32,7 @@ func NewAttestationId(att ethpb.Att, digest [32]byte) AttestationId {
 	if att.Version() == version.Phase0 {
 		id.CommitteeIndicesRoot = hash.Hash([]byte(strconv.Itoa(int(att.GetData().CommitteeIndex))))
 	} else {
-		indices := helpers.CommitteeIndices(att.GetCommitteeBitsVal())
+		indices := helpers.CommitteeIndices(att.CommitteeBitsVal())
 		b := make([]byte, 0)
 		for _, ix := range indices {
 			b = append(b, []byte(strconv.FormatUint(uint64(ix), 10))...)

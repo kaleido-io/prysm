@@ -18,14 +18,14 @@ func (s *Service) beaconAggregateProofSubscriber(_ context.Context, msg proto.Me
 		return fmt.Errorf("message was not type ethpb.SignedAggregateAttAndProof, type=%T", msg)
 	}
 
-	if a.GetAggregateAttestationAndProof().GetAggregateVal() == nil || a.GetAggregateAttestationAndProof().GetAggregateVal().GetData() == nil {
+	if a.AggregateAttestationAndProof().AggregateVal() == nil || a.AggregateAttestationAndProof().AggregateVal().GetData() == nil {
 		return errors.New("nil aggregate")
 	}
 
 	// An unaggregated attestation can make it here. It’s valid, the aggregator it just itself, although it means poor performance for the subnet.
-	if !helpers.IsAggregated(a.GetAggregateAttestationAndProof().GetAggregateVal()) {
-		return s.cfg.attPool.SaveUnaggregatedAttestation(a.GetAggregateAttestationAndProof().GetAggregateVal())
+	if !helpers.IsAggregated(a.AggregateAttestationAndProof().AggregateVal()) {
+		return s.cfg.attPool.SaveUnaggregatedAttestation(a.AggregateAttestationAndProof().AggregateVal())
 	}
 
-	return s.cfg.attPool.SaveAggregatedAttestation(a.GetAggregateAttestationAndProof().GetAggregateVal())
+	return s.cfg.attPool.SaveAggregatedAttestation(a.AggregateAttestationAndProof().AggregateVal())
 }
