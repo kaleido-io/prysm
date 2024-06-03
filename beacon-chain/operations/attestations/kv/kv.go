@@ -4,56 +4,29 @@
 package kv
 
 import (
-	"strconv"
 	"sync"
 	"time"
 
 	"github.com/patrickmn/go-cache"
-	"github.com/prysmaticlabs/prysm/v5/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/v5/config/params"
+	"github.com/prysmaticlabs/prysm/v5/consensus-types/blocks"
 	"github.com/prysmaticlabs/prysm/v5/crypto/hash"
-	ethpb "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/v5/runtime/version"
 )
 
 var hashFn = hash.Proto
-
-type AttestationId struct {
-	Version              int
-	CommitteeIndicesRoot [32]byte
-	Digest               [32]byte
-}
-
-func NewAttestationId(att ethpb.Att, digest [32]byte) AttestationId {
-	id := AttestationId{
-		Version: att.Version(),
-		Digest:  digest,
-	}
-	if att.Version() == version.Phase0 {
-		id.CommitteeIndicesRoot = hash.Hash([]byte(strconv.Itoa(int(att.GetData().CommitteeIndex))))
-	} else {
-		indices := helpers.CommitteeIndices(att.CommitteeBitsVal())
-		b := make([]byte, 0)
-		for _, ix := range indices {
-			b = append(b, []byte(strconv.FormatUint(uint64(ix), 10))...)
-		}
-		id.CommitteeIndicesRoot = hash.Hash(b)
-	}
-	return id
-}
 
 // AttCaches defines the caches used to satisfy attestation pool interface.
 // These caches are KV store for various attestations
 // such are unaggregated, aggregated or attestations within a block.
 type AttCaches struct {
 	aggregatedAttLock  sync.RWMutex
-	aggregatedAtt      map[AttestationId][]ethpb.Att
+	aggregatedAtt      map[blocks.AttestationId][]blocks.ROAttestation
 	unAggregateAttLock sync.RWMutex
-	unAggregatedAtt    map[AttestationId]ethpb.Att
+	unAggregatedAtt    map[blocks.AttestationId]blocks.ROAttestation
 	forkchoiceAttLock  sync.RWMutex
-	forkchoiceAtt      map[AttestationId]ethpb.Att
+	forkchoiceAtt      map[blocks.AttestationId]blocks.ROAttestation
 	blockAttLock       sync.RWMutex
-	blockAtt           map[AttestationId][]ethpb.Att
+	blockAtt           map[blocks.AttestationId][]blocks.ROAttestation
 	seenAtt            *cache.Cache
 }
 
@@ -63,10 +36,10 @@ func NewAttCaches() *AttCaches {
 	secsInEpoch := time.Duration(params.BeaconConfig().SlotsPerEpoch.Mul(params.BeaconConfig().SecondsPerSlot))
 	c := cache.New(secsInEpoch*time.Second, 2*secsInEpoch*time.Second)
 	pool := &AttCaches{
-		unAggregatedAtt: make(map[AttestationId]ethpb.Att),
-		aggregatedAtt:   make(map[AttestationId][]ethpb.Att),
-		forkchoiceAtt:   make(map[AttestationId]ethpb.Att),
-		blockAtt:        make(map[AttestationId][]ethpb.Att),
+		unAggregatedAtt: make(map[blocks.AttestationId]blocks.ROAttestation),
+		aggregatedAtt:   make(map[blocks.AttestationId][]blocks.ROAttestation),
+		forkchoiceAtt:   make(map[blocks.AttestationId]blocks.ROAttestation),
+		blockAtt:        make(map[blocks.AttestationId][]blocks.ROAttestation),
 		seenAtt:         c,
 	}
 

@@ -1,34 +1,14 @@
 package kv
 
 import (
-	"strconv"
-
 	"github.com/patrickmn/go-cache"
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/go-bitfield"
-	"github.com/prysmaticlabs/prysm/v5/consensus-types/primitives"
-	ethpb "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1"
-	"github.com/prysmaticlabs/prysm/v5/runtime/version"
+	"github.com/prysmaticlabs/prysm/v5/consensus-types/blocks"
 )
 
-func (c *AttCaches) insertSeenBit(att ethpb.Att) error {
-	var h [32]byte
-	var err error
-	if att.Version() == version.Phase0 {
-		h, err = hashFn(att.GetData())
-		if err != nil {
-			return err
-		}
-	} else {
-		data := ethpb.CopyAttestationData(att.GetData())
-		data.CommitteeIndex = primitives.CommitteeIndex(att.CommitteeBitsVal().BitIndices()[0])
-		h, err = hashFn(data)
-		if err != nil {
-			return err
-		}
-	}
-
-	v, ok := c.seenAtt.Get(string(h[:]) + strconv.Itoa(att.Version()))
+func (c *AttCaches) insertSeenBit(att blocks.ROAttestation) error {
+	v, ok := c.seenAtt.Get(att.DataId().String())
 	if ok {
 		seenBits, ok := v.([]bitfield.Bitlist)
 		if !ok {
@@ -46,32 +26,16 @@ func (c *AttCaches) insertSeenBit(att ethpb.Att) error {
 		if !alreadyExists {
 			seenBits = append(seenBits, att.GetAggregationBits())
 		}
-		c.seenAtt.Set(string(h[:])+strconv.Itoa(att.Version()), seenBits, cache.DefaultExpiration /* one epoch */)
+		c.seenAtt.Set(att.DataId().String(), seenBits, cache.DefaultExpiration /* one epoch */)
 		return nil
 	}
 
-	c.seenAtt.Set(string(h[:])+strconv.Itoa(att.Version()), []bitfield.Bitlist{att.GetAggregationBits()}, cache.DefaultExpiration /* one epoch */)
+	c.seenAtt.Set(att.DataId().String(), []bitfield.Bitlist{att.GetAggregationBits()}, cache.DefaultExpiration /* one epoch */)
 	return nil
 }
 
-func (c *AttCaches) hasSeenBit(att ethpb.Att) (bool, error) {
-	var h [32]byte
-	var err error
-	if att.Version() == version.Phase0 {
-		h, err = hashFn(att.GetData())
-		if err != nil {
-			return false, err
-		}
-	} else {
-		data := ethpb.CopyAttestationData(att.GetData())
-		data.CommitteeIndex = primitives.CommitteeIndex(att.CommitteeBitsVal().BitIndices()[0])
-		h, err = hashFn(data)
-		if err != nil {
-			return false, err
-		}
-	}
-
-	v, ok := c.seenAtt.Get(string(h[:]) + strconv.Itoa(att.Version()))
+func (c *AttCaches) hasSeenBit(att blocks.ROAttestation) (bool, error) {
+	v, ok := c.seenAtt.Get(att.DataId().String())
 	if ok {
 		seenBits, ok := v.([]bitfield.Bitlist)
 		if !ok {

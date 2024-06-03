@@ -11,6 +11,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v5/beacon-chain/blockchain"
 	"github.com/prysmaticlabs/prysm/v5/beacon-chain/core/helpers"
 	"github.com/prysmaticlabs/prysm/v5/config/params"
+	"github.com/prysmaticlabs/prysm/v5/consensus-types/blocks"
 	"github.com/prysmaticlabs/prysm/v5/consensus-types/primitives"
 	"github.com/prysmaticlabs/prysm/v5/crypto/rand"
 	"github.com/prysmaticlabs/prysm/v5/encoding/bytesutil"
@@ -102,7 +103,12 @@ func (s *Service) processAttestations(ctx context.Context, attestations []ethpb.
 			}
 			aggValid := pubsub.ValidationAccept == valRes
 			if s.validateBlockInAttestation(ctx, signedAtt) && aggValid {
-				if err := s.cfg.attPool.SaveAggregatedAttestation(att.AggregateVal()); err != nil {
+				roAtt, err := blocks.NewROAttestation(att.AggregateVal())
+				if err != nil {
+					log.WithError(err).Debug("Could not create ROAttestation from aggregate attestation")
+					continue
+				}
+				if err := s.cfg.attPool.SaveAggregatedAttestation(roAtt); err != nil {
 					log.WithError(err).Debug("Could not save aggregate attestation")
 					continue
 				}
@@ -137,7 +143,12 @@ func (s *Service) processAttestations(ctx context.Context, attestations []ethpb.
 				continue
 			}
 			if valid == pubsub.ValidationAccept {
-				if err := s.cfg.attPool.SaveUnaggregatedAttestation(att.AggregateVal()); err != nil {
+				roAtt, err := blocks.NewROAttestation(att.AggregateVal())
+				if err != nil {
+					log.WithError(err).Debug("Could not create ROAttestation from aggregate attestation")
+					continue
+				}
+				if err := s.cfg.attPool.SaveUnaggregatedAttestation(roAtt); err != nil {
 					log.WithError(err).Debug("Could not save unaggregated attestation")
 					continue
 				}

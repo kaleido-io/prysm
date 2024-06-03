@@ -12,7 +12,7 @@ import (
 )
 
 func validateCommitteeIndexElectra(ctx context.Context, a *ethpb.AttestationElectra) (primitives.CommitteeIndex, pubsub.ValidationResult, error) {
-	ctx, span := trace.StartSpan(ctx, "sync.validateCommitteeIndexElectra")
+	_, span := trace.StartSpan(ctx, "sync.validateCommitteeIndexElectra")
 	defer span.End()
 
 	ci := a.Data.CommitteeIndex

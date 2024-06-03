@@ -8,9 +8,9 @@ import (
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/prysmaticlabs/prysm/v5/beacon-chain/core/blocks"
 	"github.com/prysmaticlabs/prysm/v5/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/v5/beacon-chain/operations/attestations/kv"
 	"github.com/prysmaticlabs/prysm/v5/beacon-chain/state"
 	"github.com/prysmaticlabs/prysm/v5/config/params"
+	consensusblocks "github.com/prysmaticlabs/prysm/v5/consensus-types/blocks"
 	"github.com/prysmaticlabs/prysm/v5/consensus-types/primitives"
 	ethpb "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1/attestation/aggregation"
@@ -20,14 +20,14 @@ import (
 	"go.opencensus.io/trace"
 )
 
-type proposerAtts []ethpb.Att
+type proposerAtts []consensusblocks.ROAttestation
 
 func (vs *Server) packAttestations(ctx context.Context, latestState state.BeaconState, blkSlot primitives.Slot) ([]ethpb.Att, error) {
 	ctx, span := trace.StartSpan(ctx, "ProposerServer.packAttestations")
 	defer span.End()
 
-	atts := vs.AttPool.AggregatedAttestations()
-	atts, err := vs.validateAndDeleteAttsInPool(ctx, latestState, atts)
+	roAtts := vs.AttPool.AggregatedAttestations()
+	roAtts, err := vs.validateAndDeleteAttsInPool(ctx, latestState, roAtts)
 	if err != nil {
 		return nil, errors.Wrap(err, "could not filter attestations")
 	}
@@ -40,19 +40,19 @@ func (vs *Server) packAttestations(ctx context.Context, latestState state.Beacon
 	if err != nil {
 		return nil, errors.Wrap(err, "could not filter attestations")
 	}
-	atts = append(atts, uAtts...)
+	roAtts = append(roAtts, uAtts...)
 
 	postElectra := slots.ToEpoch(blkSlot) >= params.BeaconConfig().ElectraForkEpoch
 
-	versionAtts := make([]ethpb.Att, 0, len(atts))
+	versionAtts := make([]consensusblocks.ROAttestation, 0, len(roAtts))
 	if postElectra {
-		for _, a := range atts {
+		for _, a := range roAtts {
 			if a.Version() == version.Electra {
 				versionAtts = append(versionAtts, a)
 			}
 		}
 	} else {
-		for _, a := range atts {
+		for _, a := range roAtts {
 			if a.Version() == version.Phase0 {
 				versionAtts = append(versionAtts, a)
 			}
@@ -66,14 +66,9 @@ func (vs *Server) packAttestations(ctx context.Context, latestState state.Beacon
 		return nil, err
 	}
 
-	attsByDataRoot := make(map[kv.AttestationId][]ethpb.Att, len(versionAtts))
+	attsByDataRoot := make(map[consensusblocks.AttestationId][]consensusblocks.ROAttestation, len(versionAtts))
 	for _, att := range versionAtts {
-		attDataRoot, err := att.GetData().HashTreeRoot()
-		if err != nil {
-			return nil, err
-		}
-		key := kv.NewAttestationId(att, attDataRoot)
-		attsByDataRoot[key] = append(attsByDataRoot[key], att)
+		attsByDataRoot[att.DataId()] = append(attsByDataRoot[att.DataId()], att)
 	}
 
 	for r, as := range attsByDataRoot {
@@ -91,7 +86,7 @@ func (vs *Server) packAttestations(ctx context.Context, latestState state.Beacon
 			return nil, err
 		}
 	} else {
-		attsForInclusion = make([]ethpb.Att, 0)
+		attsForInclusion = make([]consensusblocks.ROAttestation, 0)
 		for _, as := range attsByDataRoot {
 			attsForInclusion = append(attsForInclusion, as...)
 		}
@@ -105,7 +100,12 @@ func (vs *Server) packAttestations(ctx context.Context, latestState state.Beacon
 	if err != nil {
 		return nil, err
 	}
-	atts = sorted.limitToMaxAttestations()
+	roAtts = sorted.limitToMaxAttestations()
+
+	atts := make([]ethpb.Att, 0, len(roAtts))
+	for i, att := range roAtts {
+		atts[i] = att.Att
+	}
 	return atts, nil
 }
 
@@ -113,11 +113,11 @@ func (vs *Server) packAttestations(ctx context.Context, latestState state.Beacon
 // The first group passes the all the required checks for attestation to be considered for proposing.
 // And attestations from the second group should be deleted.
 func (a proposerAtts) filter(ctx context.Context, st state.BeaconState) (proposerAtts, proposerAtts) {
-	validAtts := make([]ethpb.Att, 0, len(a))
-	invalidAtts := make([]ethpb.Att, 0, len(a))
+	validAtts := make([]consensusblocks.ROAttestation, 0, len(a))
+	invalidAtts := make([]consensusblocks.ROAttestation, 0, len(a))
 
 	for _, att := range a {
-		if err := blocks.VerifyAttestationNoVerifySignature(ctx, st, att); err == nil {
+		if err := blocks.VerifyAttestationNoVerifySignature(ctx, st, att.Att); err == nil {
 			validAtts = append(validAtts, att)
 			continue
 		}
@@ -226,18 +226,13 @@ func (a proposerAtts) dedup() (proposerAtts, error) {
 	if len(a) < 2 {
 		return a, nil
 	}
-	attsByDataRoot := make(map[kv.AttestationId][]ethpb.Att, len(a))
+	attsByDataId := make(map[consensusblocks.AttestationId][]consensusblocks.ROAttestation, len(a))
 	for _, att := range a {
-		attDataRoot, err := att.GetData().HashTreeRoot()
-		if err != nil {
-			continue
-		}
-		key := kv.NewAttestationId(att, attDataRoot)
-		attsByDataRoot[key] = append(attsByDataRoot[key], att)
+		attsByDataId[att.DataId()] = append(attsByDataId[att.DataId()], att)
 	}
 
-	uniqAtts := make([]ethpb.Att, 0, len(a))
-	for _, atts := range attsByDataRoot {
+	uniqAtts := make([]consensusblocks.ROAttestation, 0, len(a))
+	for _, atts := range attsByDataId {
 		for i := 0; i < len(atts); i++ {
 			a := atts[i]
 			for j := i + 1; j < len(atts); j++ {
@@ -247,7 +242,7 @@ func (a proposerAtts) dedup() (proposerAtts, error) {
 				} else if c {
 					// a contains b, b is redundant.
 					atts[j] = atts[len(atts)-1]
-					atts[len(atts)-1] = nil
+					atts[len(atts)-1] = consensusblocks.ROAttestation{}
 					atts = atts[:len(atts)-1]
 					j--
 				} else if c, err := b.GetAggregationBits().Contains(a.GetAggregationBits()); err != nil {
@@ -255,7 +250,7 @@ func (a proposerAtts) dedup() (proposerAtts, error) {
 				} else if c {
 					// b contains a, a is redundant.
 					atts[i] = atts[len(atts)-1]
-					atts[len(atts)-1] = nil
+					atts[len(atts)-1] = consensusblocks.ROAttestation{}
 					atts = atts[:len(atts)-1]
 					i--
 					break
@@ -269,7 +264,11 @@ func (a proposerAtts) dedup() (proposerAtts, error) {
 }
 
 // This filters the input attestations to return a list of valid attestations to be packaged inside a beacon block.
-func (vs *Server) validateAndDeleteAttsInPool(ctx context.Context, st state.BeaconState, atts []ethpb.Att) ([]ethpb.Att, error) {
+func (vs *Server) validateAndDeleteAttsInPool(
+	ctx context.Context,
+	st state.BeaconState,
+	atts []consensusblocks.ROAttestation,
+) ([]consensusblocks.ROAttestation, error) {
 	ctx, span := trace.StartSpan(ctx, "ProposerServer.validateAndDeleteAttsInPool")
 	defer span.End()
 
@@ -282,7 +281,7 @@ func (vs *Server) validateAndDeleteAttsInPool(ctx context.Context, st state.Beac
 
 // The input attestations are processed and seen by the node, this deletes them from pool
 // so proposers don't include them in a block for the future.
-func (vs *Server) deleteAttsInPool(ctx context.Context, atts []ethpb.Att) error {
+func (vs *Server) deleteAttsInPool(ctx context.Context, atts []consensusblocks.ROAttestation) error {
 	ctx, span := trace.StartSpan(ctx, "ProposerServer.deleteAttsInPool")
 	defer span.End()
 
@@ -290,7 +289,7 @@ func (vs *Server) deleteAttsInPool(ctx context.Context, atts []ethpb.Att) error 
 		if ctx.Err() != nil {
 			return ctx.Err()
 		}
-		if helpers.IsAggregated(att) {
+		if helpers.IsAggregated(att.Att) {
 			if err := vs.AttPool.DeleteAggregatedAttestation(att); err != nil {
 				return err
 			}

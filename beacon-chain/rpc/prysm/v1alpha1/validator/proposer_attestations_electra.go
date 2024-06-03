@@ -1,13 +1,11 @@
 package validator
 
 import (
-	"math"
 	"slices"
 
 	"github.com/prysmaticlabs/go-bitfield"
 	"github.com/prysmaticlabs/prysm/v5/beacon-chain/core/helpers"
-	"github.com/prysmaticlabs/prysm/v5/beacon-chain/operations/attestations/kv"
-	"github.com/prysmaticlabs/prysm/v5/config/params"
+	"github.com/prysmaticlabs/prysm/v5/consensus-types/blocks"
 	"github.com/prysmaticlabs/prysm/v5/consensus-types/primitives"
 	"github.com/prysmaticlabs/prysm/v5/crypto/bls"
 	ethpb "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1"
@@ -41,25 +39,32 @@ import (
 //			committee_bits=committee_bits,
 //			signature=signature,
 //		)
-func computeOnChainAggregate(aggregates map[kv.AttestationId][]ethpb.Att) ([]ethpb.Att, error) {
+func computeOnChainAggregate(aggregates map[blocks.AttestationId][]blocks.ROAttestation) ([]blocks.ROAttestation, error) {
 	// Digest is the attestation data root. The incoming map has attestations for the same root
 	// but different committee indices under different keys. We create a new map where the digest is the key
 	// so that all attestations for the same root are under one key.
-	aggsByDigest := make(map[[32]byte][]ethpb.Att, 0)
+	aggsByDataId := make(map[blocks.AttestationId][]blocks.ROAttestation, 0)
 	for id, aggs := range aggregates {
-		existing, ok := aggsByDigest[id.Digest]
+		noCommitteeId := id.IgnoreCommittee()
+		existing, ok := aggsByDataId[noCommitteeId]
 		if ok {
-			aggsByDigest[id.Digest] = append(existing, aggs...)
+			aggsByDataId[noCommitteeId] = append(existing, aggs...)
 		} else {
-			aggsByDigest[id.Digest] = aggs
+			aggsByDataId[noCommitteeId] = aggs
 		}
 	}
 
-	result := make([]ethpb.Att, 0)
+	result := make([]blocks.ROAttestation, 0)
 
-	for _, aggs := range aggsByDigest {
-		slices.SortFunc(aggs, func(a, b ethpb.Att) int {
-			return a.CommitteeBitsVal().BitIndices()[0] - b.CommitteeBitsVal().BitIndices()[0]
+	for _, aggs := range aggsByDataId {
+		slices.SortFunc(aggs, func(a, b blocks.ROAttestation) int {
+			if a.CommitteeIndex() < b.CommitteeIndex() {
+				return -1
+			} else if a.CommitteeIndex() == b.CommitteeIndex() {
+				return 0
+			} else {
+				return 1
+			}
 		})
 
 		sigs := make([]bls.Signature, len(aggs))
@@ -80,25 +85,24 @@ func computeOnChainAggregate(aggregates map[kv.AttestationId][]ethpb.Att) ([]eth
 			aggBitsOffset += a.GetAggregationBits().Len()
 		}
 
-		aggregationBits := bitfield.NewBitlist(uint64(aggBitsOffset))
+		aggregationBits := bitfield.NewBitlist(aggBitsOffset)
 		for _, bi := range aggBitsIndices {
-			aggregationBits.SetBitAt(uint64(bi), true)
+			aggregationBits.SetBitAt(bi, true)
 		}
-
-		// TODO: hack
-		committeeBits := make([]byte, int(math.Ceil(float64(params.BeaconConfig().MaxCommitteesPerSlot)/float64(8))))
-
 		att := &ethpb.AttestationElectra{
 			AggregationBits: aggregationBits,
 			Data:            aggs[0].GetData(),
-			CommitteeBits:   committeeBits,
+			CommitteeBits:   primitives.NewAttestationCommitteeBits(),
 			Signature:       bls.AggregateSignatures(sigs).Marshal(),
 		}
 		for _, ci := range committeeIndices {
 			att.CommitteeBits.SetBitAt(uint64(ci), true)
 		}
-
-		result = append(result, att)
+		roAtt, err := blocks.NewROAttestation(att)
+		if err != nil {
+			return nil, err
+		}
+		result = append(result, roAtt)
 	}
 
 	return result, nil

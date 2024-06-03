@@ -5,6 +5,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/prysmaticlabs/prysm/v5/beacon-chain/core/helpers"
+	"github.com/prysmaticlabs/prysm/v5/consensus-types/blocks"
 	"github.com/prysmaticlabs/prysm/v5/consensus-types/primitives"
 	ethpb "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1"
 	"github.com/prysmaticlabs/prysm/v5/runtime/version"
@@ -12,11 +13,8 @@ import (
 )
 
 // SaveUnaggregatedAttestation saves an unaggregated attestation in cache.
-func (c *AttCaches) SaveUnaggregatedAttestation(att ethpb.Att) error {
-	if att == nil {
-		return nil
-	}
-	if helpers.IsAggregated(att) {
+func (c *AttCaches) SaveUnaggregatedAttestation(att blocks.ROAttestation) error {
+	if helpers.IsAggregated(att.Att) {
 		return errors.New("attestation is aggregated")
 	}
 
@@ -28,19 +26,15 @@ func (c *AttCaches) SaveUnaggregatedAttestation(att ethpb.Att) error {
 		return nil
 	}
 
-	r, err := hashFn(att)
-	if err != nil {
-		return errors.Wrap(err, "could not tree hash attestation")
-	}
 	c.unAggregateAttLock.Lock()
 	defer c.unAggregateAttLock.Unlock()
-	c.unAggregatedAtt[NewAttestationId(att, r)] = att
+	c.unAggregatedAtt[att.Id()] = att
 
 	return nil
 }
 
 // SaveUnaggregatedAttestations saves a list of unaggregated attestations in cache.
-func (c *AttCaches) SaveUnaggregatedAttestations(atts []ethpb.Att) error {
+func (c *AttCaches) SaveUnaggregatedAttestations(atts []blocks.ROAttestation) error {
 	for _, att := range atts {
 		if err := c.SaveUnaggregatedAttestation(att); err != nil {
 			return err
@@ -51,11 +45,11 @@ func (c *AttCaches) SaveUnaggregatedAttestations(atts []ethpb.Att) error {
 }
 
 // UnaggregatedAttestations returns all the unaggregated attestations in cache.
-func (c *AttCaches) UnaggregatedAttestations() ([]ethpb.Att, error) {
+func (c *AttCaches) UnaggregatedAttestations() ([]blocks.ROAttestation, error) {
 	c.unAggregateAttLock.RLock()
 	defer c.unAggregateAttLock.RUnlock()
 	unAggregatedAtts := c.unAggregatedAtt
-	atts := make([]ethpb.Att, 0, len(unAggregatedAtts))
+	atts := make([]blocks.ROAttestation, 0, len(unAggregatedAtts))
 	for _, att := range unAggregatedAtts {
 		seen, err := c.hasSeenBit(att)
 		if err != nil {
@@ -85,8 +79,8 @@ func (c *AttCaches) UnaggregatedAttestationsBySlotIndex(
 
 	unAggregatedAtts := c.unAggregatedAtt
 	for _, a := range unAggregatedAtts {
-		if a.Version() == version.Phase0 && slot == a.GetData().Slot && committeeIndex == a.GetData().CommitteeIndex {
-			att, ok := a.(*ethpb.Attestation)
+		if a.Version() == version.Phase0 && slot == a.GetData().Slot && committeeIndex == a.CommitteeIndex() {
+			att, ok := a.Att.(*ethpb.Attestation)
 			// This will never fail in practice because we asserted the version
 			if ok {
 				atts = append(atts, att)
@@ -114,8 +108,8 @@ func (c *AttCaches) UnaggregatedAttestationsBySlotIndexElectra(
 
 	unAggregatedAtts := c.unAggregatedAtt
 	for _, a := range unAggregatedAtts {
-		if a.Version() == version.Electra && slot == a.GetData().Slot && a.CommitteeBitsVal().BitAt(uint64(committeeIndex)) {
-			att, ok := a.(*ethpb.AttestationElectra)
+		if a.Version() == version.Electra && slot == a.GetData().Slot && committeeIndex == a.CommitteeIndex() {
+			att, ok := a.Att.(*ethpb.AttestationElectra)
 			// This will never fail in practice because we asserted the version
 			if ok {
 				atts = append(atts, att)
@@ -127,11 +121,8 @@ func (c *AttCaches) UnaggregatedAttestationsBySlotIndexElectra(
 }
 
 // DeleteUnaggregatedAttestation deletes the unaggregated attestations in cache.
-func (c *AttCaches) DeleteUnaggregatedAttestation(att ethpb.Att) error {
-	if att == nil {
-		return nil
-	}
-	if helpers.IsAggregated(att) {
+func (c *AttCaches) DeleteUnaggregatedAttestation(att blocks.ROAttestation) error {
+	if helpers.IsAggregated(att.Att) {
 		return errors.New("attestation is aggregated")
 	}
 
@@ -139,14 +130,9 @@ func (c *AttCaches) DeleteUnaggregatedAttestation(att ethpb.Att) error {
 		return err
 	}
 
-	r, err := hashFn(att)
-	if err != nil {
-		return errors.Wrap(err, "could not tree hash attestation")
-	}
-
 	c.unAggregateAttLock.Lock()
 	defer c.unAggregateAttLock.Unlock()
-	delete(c.unAggregatedAtt, NewAttestationId(att, r))
+	delete(c.unAggregatedAtt, att.Id())
 
 	return nil
 }
@@ -158,12 +144,12 @@ func (c *AttCaches) DeleteSeenUnaggregatedAttestations() (int, error) {
 	defer c.unAggregateAttLock.Unlock()
 
 	count := 0
-	for r, att := range c.unAggregatedAtt {
-		if att == nil || helpers.IsAggregated(att) {
+	for id, att := range c.unAggregatedAtt {
+		if helpers.IsAggregated(att.Att) {
 			continue
 		}
 		if seen, err := c.hasSeenBit(att); err == nil && seen {
-			delete(c.unAggregatedAtt, r)
+			delete(c.unAggregatedAtt, id)
 			count++
 		}
 	}
