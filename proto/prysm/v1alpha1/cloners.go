@@ -657,32 +657,6 @@ func CopyBlindedBeaconBlockBodyElectra(body *BlindedBeaconBlockBodyElectra) *Bli
 		ExecutionPayloadHeader: CopyExecutionPayloadHeaderElectra(body.ExecutionPayloadHeader),
 		BlsToExecutionChanges:  CopyBLSToExecutionChanges(body.BlsToExecutionChanges),
 		BlobKzgCommitments:     CopyBlobKZGs(body.BlobKzgCommitments),
-		Consolidations:         CopySignedConsolidations(body.Consolidations),
-	}
-}
-
-func CopySignedConsolidations(c []*SignedConsolidation) []*SignedConsolidation {
-	if c == nil {
-		return nil
-	}
-	newC := make([]*SignedConsolidation, len(c))
-	for i, cc := range c {
-		newC[i] = CopySignedConsolidation(cc)
-	}
-	return newC
-}
-
-func CopySignedConsolidation(c *SignedConsolidation) *SignedConsolidation {
-	if c == nil {
-		return nil
-	}
-	return &SignedConsolidation{
-		Message: &Consolidation{
-			SourceIndex: c.Message.SourceIndex,
-			TargetIndex: c.Message.TargetIndex,
-			Epoch:       c.Message.Epoch,
-		},
-		Signature: bytesutil.SafeCopyBytes(c.Signature),
 	}
 }
 
@@ -1019,7 +993,6 @@ func CopyBeaconBlockBodyElectra(body *BeaconBlockBodyElectra) *BeaconBlockBodyEl
 		ExecutionPayload:      CopyExecutionPayloadElectra(body.ExecutionPayload),
 		BlsToExecutionChanges: CopyBLSToExecutionChanges(body.BlsToExecutionChanges),
 		BlobKzgCommitments:    CopyBlobKZGs(body.BlobKzgCommitments),
-		Consolidations:        CopySignedConsolidations(body.Consolidations),
 	}
 }
 

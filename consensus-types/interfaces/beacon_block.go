@@ -73,7 +73,6 @@ type ReadOnlyBeaconBlockBody interface {
 
 type ROBlockBodyElectra interface {
 	ReadOnlyBeaconBlockBody
-	Consolidations() []*ethpb.SignedConsolidation
 }
 
 type SignedBeaconBlock interface {
