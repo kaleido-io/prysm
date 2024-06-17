@@ -10,6 +10,7 @@ import (
 	"github.com/prysmaticlabs/prysm/v5/consensus-types/primitives"
 	ethpb "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1"
 	attaggregation "github.com/prysmaticlabs/prysm/v5/proto/prysm/v1alpha1/attestation/aggregation/attestations"
+	"github.com/prysmaticlabs/prysm/v5/runtime/version"
 	log "github.com/sirupsen/logrus"
 	"go.opencensus.io/trace"
 )
@@ -191,17 +192,56 @@ func (c *AttCaches) AggregatedAttestations() []ethpb.Att {
 
 // AggregatedAttestationsBySlotIndex returns the aggregated attestations in cache,
 // filtered by committee index and slot.
-func (c *AttCaches) AggregatedAttestationsBySlotIndex(ctx context.Context, slot primitives.Slot, committeeIndex primitives.CommitteeIndex) []ethpb.Att {
+func (c *AttCaches) AggregatedAttestationsBySlotIndex(
+	ctx context.Context,
+	slot primitives.Slot,
+	committeeIndex primitives.CommitteeIndex,
+) []*ethpb.Attestation {
 	_, span := trace.StartSpan(ctx, "operations.attestations.kv.AggregatedAttestationsBySlotIndex")
 	defer span.End()
 
-	atts := make([]ethpb.Att, 0)
+	atts := make([]*ethpb.Attestation, 0)
 
 	c.aggregatedAttLock.RLock()
 	defer c.aggregatedAttLock.RUnlock()
-	for _, a := range c.aggregatedAtt {
-		if slot == a[0].GetData().Slot && committeeIndex == a[0].GetData().CommitteeIndex {
-			atts = append(atts, a...)
+	for _, as := range c.aggregatedAtt {
+		if as[0].Version() == version.Phase0 && slot == as[0].GetData().Slot && committeeIndex == as[0].GetData().CommitteeIndex {
+			for _, a := range as {
+				att, ok := a.(*ethpb.Attestation)
+				// This will never fail in practice because we asserted the version
+				if ok {
+					atts = append(atts, att)
+				}
+			}
+		}
+	}
+
+	return atts
+}
+
+// AggregatedAttestationsBySlotIndexElectra returns the aggregated attestations in cache,
+// filtered by committee index and slot.
+func (c *AttCaches) AggregatedAttestationsBySlotIndexElectra(
+	ctx context.Context,
+	slot primitives.Slot,
+	committeeIndex primitives.CommitteeIndex,
+) []*ethpb.AttestationElectra {
+	_, span := trace.StartSpan(ctx, "operations.attestations.kv.AggregatedAttestationsBySlotIndexElectra")
+	defer span.End()
+
+	atts := make([]*ethpb.AttestationElectra, 0)
+
+	c.aggregatedAttLock.RLock()
+	defer c.aggregatedAttLock.RUnlock()
+	for _, as := range c.aggregatedAtt {
+		if as[0].Version() == version.Electra && slot == as[0].GetData().Slot && as[0].CommitteeBitsVal().BitAt(uint64(committeeIndex)) {
+			for _, a := range as {
+				att, ok := a.(*ethpb.AttestationElectra)
+				// This will never fail in practice because we asserted the version
+				if ok {
+					atts = append(atts, att)
+				}
+			}
 		}
 	}
 
