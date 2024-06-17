@@ -86,12 +86,7 @@ func (v *validator) SubmitAttestation(ctx context.Context, slot primitives.Slot,
 		return
 	}
 
-	indexedAtt := &ethpb.IndexedAttestation{
-		AttestingIndices: []uint64{uint64(duty.ValidatorIndex)},
-		Data:             data,
-	}
-
-	_, signingRoot, err := v.domainAndSigningRoot(ctx, indexedAtt.Data)
+	sig, _, err := v.signAtt(ctx, pubKey, data, slot)
 	if err != nil {
 		log.WithError(err).Error("Could not sign attestation")
 		if v.emitAccountMetrics {
@@ -118,7 +113,7 @@ func (v *validator) SubmitAttestation(ctx context.Context, slot primitives.Slot,
 		}
 	}
 
-	_, signingRoot, err := v.getDomainAndSigningRoot(ctx, indexedAtt.GetData())
+	_, signingRoot, err := v.domainAndSigningRoot(ctx, indexedAtt.GetData())
 	if err != nil {
 		log.WithError(err).Error("Could not get domain and signing root from attestation")
 		if v.emitAccountMetrics {
