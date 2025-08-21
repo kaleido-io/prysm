@@ -1,6 +1,6 @@
 module github.com/OffchainLabs/prysm/v6
 
-go 1.24.4
+go 1.24.6
 
 require (
 	github.com/MariusVanDerWijden/FuzzyVM v0.0.0-20240516070431-7828990cad7d
